@@ -30,3 +30,6 @@ Thumbs.db
 # Env
 .env
 .env.local
+
+# GitHub Actions (requires workflow scope)
+.github/
