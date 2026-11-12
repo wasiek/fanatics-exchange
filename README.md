@@ -4,185 +4,161 @@ High-availability trading exchange platform built with Spring Boot 3.4 and Java 
 
 ## Features
 
-- **Trading Account Management** — Create accounts, deposit/withdraw funds
-- **Order Management** — Place, track, and cancel orders (MARKET, LIMIT, STOP)
-- **Trade Execution** — Simulated order matching and trade records
-- **Real-time Updates** — Kafka integration for async event processing
-- **REST API** — Clean, versioned REST endpoints
-- **GraalVM Native Image** — Optimized for fast startup and low memory footprint
+- **Trading Account Management** - Create accounts, deposit/withdraw funds
+- **Order Management** - Place BUY/SELL MARKET orders with real-time execution
+- **Trade Execution** - Simulated order filling with commission calculation
+- **Balance Management** - Real-time balance updates with transactional integrity
+- **Kafka Integration** - Event-driven architecture for trade events
+- **REST API** - Clean, well-documented REST endpoints
+- **Swagger UI** - Interactive API documentation at `/swagger-ui.html`
+- **Docker** - Multi-stage Docker build + docker-compose (app + PostgreSQL + Kafka)
+- **GraalVM Native Image** - Ready for native compilation
+- **H2 / PostgreSQL** - H2 for dev, PostgreSQL for production
+- **Validation** - Bean Validation with proper error handling
+- **Global Exception Handling** - Clean error responses
 
 ## Tech Stack
 
-- **Java 21**
-- **Spring Boot 3.4.1**
-- **Spring Data JPA**
-- **Kafka**
-- **PostgreSQL** (production) / **H2** (dev/test)
-- **Lombok**
-- **GraalVM Native Image**
+| Component | Technology |
+|-----------|-----------|
+| Language | Java 21 |
+| Framework | Spring Boot 3.4.1 |
+| Database | H2 (dev) / PostgreSQL (prod) |
+| ORM | Spring Data JPA / Hibernate |
+| Messaging | Apache Kafka |
+| API Docs | SpringDoc OpenAPI (Swagger) |
+| Build | Maven |
+| Container | Docker (multi-stage) |
+| CI/CD | GitHub Actions |
+| Native | GraalVM Native Image (ready) |
 
 ## Getting Started
 
 ### Prerequisites
-
 - Java 21+
 - Maven 3.8+
-- Docker (optional, for PostgreSQL and Kafka)
+- Docker (optional, for full stack)
 
-### Build
-
-```bash
-mvn clean install
-```
-
-### Run (development)
-
+### Run with H2 (dev)
 ```bash
 mvn spring-boot:run
 ```
 
-The application will start on `http://localhost:8096` with an in-memory H2 database.
+API available at: `http://localhost:8096`
+Swagger UI: `http://localhost:8096/swagger-ui.html`
+H2 Console: `http://localhost:8096/h2-console`
 
-### Run (production)
-
+### Run with Docker Compose (full stack)
 ```bash
-# Set environment variables for PostgreSQL
-export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/fanatics
-export SPRING_DATASOURCE_USERNAME=fanatics
-export SPRING_DATASOURCE_PASSWORD=fanatics
-
-mvn spring-boot:run
+docker compose up --build
 ```
 
-### Build Native Image (GraalVM)
+This starts:
+- App on port 8096
+- PostgreSQL on port 5433
+- Kafka on port 9093
 
+### Run Tests
 ```bash
-# Install GraalVM Native Image
-sudo apt install graalvm-native-image
+mvn test
+```
 
-# Build native executable
+### Build JAR
+```bash
+mvn clean package -DskipTests
+```
+
+### Build Native Image (requires GraalVM)
+```bash
 mvn native:compile
-
-# Run native executable
-./target/fanatics-exchange
 ```
 
 ## API Endpoints
 
 ### Trading Accounts
-
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/accounts` | Create a new trading account |
+| POST | `/api/v1/accounts` | Create trading account |
 | GET | `/api/v1/accounts` | List all accounts |
 | GET | `/api/v1/accounts/{id}` | Get account by ID |
-| GET | `/api/v1/accounts/number/{accountNumber}` | Get account by number |
 | POST | `/api/v1/accounts/{id}/deposit` | Deposit funds |
 | POST | `/api/v1/accounts/{id}/withdraw` | Withdraw funds |
 
 ### Orders
-
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/orders` | Place a new order |
+| POST | `/api/v1/orders` | Place order (BUY/SELL MARKET) |
 | GET | `/api/v1/orders` | List all orders |
 | GET | `/api/v1/orders/{id}` | Get order by ID |
 | GET | `/api/v1/orders/account/{accountId}` | Get orders by account |
-| GET | `/api/v1/orders/symbol/{symbol}/status/{status}` | Get orders by symbol and status |
-| DELETE | `/api/v1/orders/{id}` | Cancel an order |
 
-## Example Requests
+### Trades
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/trades` | List all trades |
+| GET | `/api/v1/trades/account/{accountId}` | Get trades by account |
 
-### Create Trading Account
+## Order Execution Logic
 
-```bash
-curl -X POST http://localhost:8096/api/v1/accounts \
-  -H "Content-Type: application/json" \
-  -d '{
-    "accountNumber": "ACC123456789",
-    "ownerName": "John Doe",
-    "initialBalance": 100000.00
-  }'
-```
+1. **Validation** - Check account exists, is ACTIVE, has sufficient balance
+2. **Balance Update** - Deduct cost (BUY) or add proceeds (SELL) atomically
+3. **Order Fill** - Execute at specified price (or default 100.00)
+4. **Commission** - 0.1% of trade value
+5. **Trade Record** - Create trade entry with execution details
 
-### Deposit Funds
-
-```bash
-curl -X POST http://localhost:8096/api/v1/accounts/1/deposit \
-  -H "Content-Type: application/json" \
-  -d '{
-    "amount": 50000.00
-  }'
-```
-
-### Place Order
-
-```bash
-curl -X POST http://localhost:8096/api/v1/orders \
-  -H "Content-Type: application/json" \
-  -d '{
-    "accountId": 1,
-    "symbol": "AAPL",
-    "side": "BUY",
-    "type": "MARKET",
-    "quantity": 100.00,
-    "price": 150.00
-  }'
-```
-
-Response:
-```json
-{
-  "id": 1,
-  "accountId": 1,
-  "symbol": "AAPL",
-  "side": "BUY",
-  "type": "MARKET",
-  "quantity": 100.00,
-  "price": 150.00,
-  "status": "FILLED",
-  "filledQuantity": 100.00,
-  "averageFillPrice": 150.00,
-  "createdAt": "2026-11-12T17:15:00Z",
-  "filledAt": "2026-11-12T17:15:00Z"
-}
-```
-
-### Get Orders by Account
-
-```bash
-curl http://localhost:8096/api/v1/orders/account/1
-```
+### Example: BUY 10 shares of AAPL at $150
+- Cost: 10 × $150 = $1,500
+- Commission: $1,500 × 0.001 = $1.50
+- Total deduction: $1,501.50
+- Balance: $100,000 → $98,498.50
 
 ## Project Structure
 
 ```
 src/main/java/com/github/dziki/fanatics/
-├── FanaticsExchangeApplication.java          # Main application class
+├── FanaticsExchangeApplication.java      # Main class
 ├── config/
-│   └── JpaConfig.java                        # JPA auditing configuration
+│   ├── JpaConfig.java                    # JPA configuration
+│   └── OpenApiConfig.java                # Swagger/OpenAPI config
 ├── controller/
-│   ├── TradingAccountController.java         # REST API for accounts
-│   └── OrderController.java                  # REST API for orders
+│   ├── TradingAccountController.java     # Account CRUD + deposit/withdraw
+│   └── OrderController.java              # Order placement + queries
 ├── dto/
-│   ├── TradingAccountRequest.java            # Request DTO
-│   ├── TradingAccountResponse.java           # Response DTO
-│   ├── OrderRequest.java                     # Request DTO
-│   └── OrderResponse.java                    # Response DTO
+│   ├── TradingAccountRequest.java        # Create account request
+│   ├── TradingAccountResponse.java       # Account response
+│   ├── OrderRequest.java                 # Place order request
+│   └── OrderResponse.java                # Order response
 ├── exception/
-│   └── GlobalExceptionHandler.java           # Global exception handling
+│   └── GlobalExceptionHandler.java       # Global error handling
 ├── model/
-│   ├── TradingAccount.java                   # JPA entity
-│   ├── Order.java                            # JPA entity
-│   └── Trade.java                            # JPA entity
+│   ├── TradingAccount.java               # Account entity
+│   ├── Order.java                        # Order entity
+│   └── Trade.java                        # Trade entity
 ├── repository/
-│   ├── TradingAccountRepository.java         # Spring Data JPA
-│   ├── OrderRepository.java                  # Spring Data JPA
-│   └── TradeRepository.java                  # Spring Data JPA
+│   ├── TradingAccountRepository.java
+│   ├── OrderRepository.java
+│   └── TradeRepository.java
 └── service/
-    ├── TradingAccountService.java            # Business logic
-    └── OrderService.java                     # Business logic
+    ├── TradingAccountService.java        # Account + balance logic
+    └── OrderService.java                 # Order + execution logic
 ```
+
+## Configuration
+
+| Profile | Database | Kafka | Port |
+|---------|----------|-------|------|
+| default (dev) | H2 in-memory | localhost:9092 | 8096 |
+| prod | PostgreSQL | configurable | 8096 |
+
+### Environment Variables (prod)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_HOST` | localhost | PostgreSQL host |
+| `DB_PORT` | 5432 | PostgreSQL port |
+| `DB_NAME` | fanatics | Database name |
+| `DB_USER` | fanatics | Database user |
+| `DB_PASSWORD` | fanatics | Database password |
+| `KAFKA_BOOTSTRAP_SERVERS` | kafka:29092 | Kafka bootstrap servers |
 
 ## License
 
