@@ -49,3 +49,12 @@ logging:
   level:
     com.github.dziki.fanatics: DEBUG
     org.springframework.kafka: INFO
+
+# OpenAPI / Swagger
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
