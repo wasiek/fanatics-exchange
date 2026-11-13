@@ -7,6 +7,10 @@ import com.github.dziki.fanatics.dto.WithdrawRequest;
 import com.github.dziki.fanatics.service.TradingAccountService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,8 +31,9 @@ public class TradingAccountController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TradingAccountResponse>> findAll() {
-        return ResponseEntity.ok(accountService.findAll());
+    public ResponseEntity<Page<TradingAccountResponse>> findAll(
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(accountService.findAll(pageable));
     }
 
     @GetMapping("/{id}")

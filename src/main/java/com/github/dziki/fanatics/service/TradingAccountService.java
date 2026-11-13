@@ -7,6 +7,8 @@ import com.github.dziki.fanatics.model.TradingAccount;
 import com.github.dziki.fanatics.repository.TradingAccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,10 +41,8 @@ public class TradingAccountService {
     }
 
     @Transactional(readOnly = true)
-    public List<TradingAccountResponse> findAll() {
-        return accountRepository.findAll().stream()
-                .map(TradingAccountResponse::fromEntity)
-                .collect(Collectors.toList());
+    public Page<TradingAccountResponse> findAll(Pageable pageable) {
+        return accountRepository.findAll(pageable).map(TradingAccountResponse::fromEntity);
     }
 
     @Transactional(readOnly = true)
@@ -69,7 +69,6 @@ public class TradingAccountService {
         }
 
         account.setBalance(account.getBalance().add(amount));
-        account = accountRepository.save(account);
         log.info("Deposit: account={}, amount={}, newBalance={}", id, amount, account.getBalance());
         return TradingAccountResponse.fromEntity(account);
     }
@@ -88,7 +87,6 @@ public class TradingAccountService {
         }
 
         account.setBalance(account.getBalance().subtract(amount));
-        account = accountRepository.save(account);
         log.info("Withdraw: account={}, amount={}, newBalance={}", id, amount, account.getBalance());
         return TradingAccountResponse.fromEntity(account);
     }

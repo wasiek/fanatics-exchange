@@ -5,6 +5,8 @@ import com.github.dziki.fanatics.exception.ResourceNotFoundException;
 import com.github.dziki.fanatics.model.Trade;
 import com.github.dziki.fanatics.repository.TradeRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,10 +20,8 @@ public class TradeService {
     private final TradeRepository tradeRepository;
 
     @Transactional(readOnly = true)
-    public List<TradeResponse> findAll() {
-        return tradeRepository.findAll().stream()
-                .map(TradeResponse::fromEntity)
-                .collect(Collectors.toList());
+    public Page<TradeResponse> findAll(Pageable pageable) {
+        return tradeRepository.findAll(pageable).map(TradeResponse::fromEntity);
     }
 
     @Transactional(readOnly = true)

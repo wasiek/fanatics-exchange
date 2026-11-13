@@ -5,6 +5,10 @@ import com.github.dziki.fanatics.dto.OrderResponse;
 import com.github.dziki.fanatics.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,8 +29,9 @@ public class OrderController {
     }
 
     @GetMapping
-    public ResponseEntity<List<OrderResponse>> findAll() {
-        return ResponseEntity.ok(orderService.findAll());
+    public ResponseEntity<Page<OrderResponse>> findAll(
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(orderService.findAll(pageable));
     }
 
     @GetMapping("/{id}")

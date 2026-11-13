@@ -12,6 +12,8 @@ import com.github.dziki.fanatics.repository.TradeRepository;
 import com.github.dziki.fanatics.repository.TradingAccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,7 +85,7 @@ public class OrderService {
 
         tradeRepository.save(trade);
 
-        // Update account balance (safe - we hold the lock)
+        // Update account balance (safe - we hold the lock, Hibernate dirty checking will persist)
         if ("BUY".equals(request.getSide())) {
             BigDecimal totalCost = executionPrice.multiply(request.getQuantity()).add(commission);
             account.setBalance(account.getBalance().subtract(totalCost));
@@ -91,8 +93,6 @@ public class OrderService {
             BigDecimal proceeds = executionPrice.multiply(request.getQuantity()).subtract(commission);
             account.setBalance(account.getBalance().add(proceeds));
         }
-
-        accountRepository.save(account);
 
         log.info("Order placed: {} {} {} @ {} (commission: {}), new balance: {}",
                 request.getSide(), request.getQuantity(), request.getSymbol(),
@@ -105,10 +105,8 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<OrderResponse> findAll() {
-        return orderRepository.findAll().stream()
-                .map(OrderResponse::fromEntity)
-                .collect(Collectors.toList());
+    public Page<OrderResponse> findAll(Pageable pageable) {
+        return orderRepository.findAll(pageable).map(OrderResponse::fromEntity);
     }
 
     @Transactional(readOnly = true)

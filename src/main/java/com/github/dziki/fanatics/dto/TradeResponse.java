@@ -16,25 +16,18 @@ public class TradeResponse {
 
     @Schema(example = "1")
     private Long id;
-
     @Schema(example = "1")
     private Long orderId;
-
     @Schema(example = "AAPL")
     private String symbol;
-
     @Schema(example = "BUY")
     private String side;
-
     @Schema(example = "10.0000")
     private BigDecimal quantity;
-
     @Schema(example = "150.0000")
     private BigDecimal price;
-
     @Schema(example = "1.5000")
     private BigDecimal commission;
-
     @Schema(example = "2026-11-13T10:30:00Z")
     private Instant executedAt;
 

@@ -116,8 +116,8 @@ class OrderControllerTest {
 
         mockMvc.perform(get("/api/v1/orders"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].symbol").value("GOOG"))
-                .andExpect(jsonPath("$[0].status").value("FILLED"));
+                .andExpect(jsonPath("$.content[0].symbol").value("GOOG"))
+                .andExpect(jsonPath("$.content[0].status").value("FILLED"));
     }
 
     @Test
