@@ -1,21 +1,76 @@
 # Fanatics Exchange Platform
 
-High-availability trading exchange platform built with Spring Boot 3.4 and Java 21.
+High-availability trading exchange backend built with Spring Boot 3.4 and Java 21.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                          REST API (8096)                            │
+│  /api/v1/accounts  /api/v1/orders  /api/v1/trades  /swagger-ui     │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────┐
+│                        Controller Layer                              │
+│  Thin controllers → delegate to services, return DTOs               │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────┐
+│                         Service Layer                                │
+│  Business logic, @Transactional, concurrency control                │
+│                                                                     │
+│  ┌─────────────────────┐  ┌────────────────────┐  ┌──────────────┐ │
+│  │TradingAccount       │  │Order               │  │Trade         │ │
+│  │Service              │  │Service             │  │Service       │ │
+│  │• deposit/withdraw   │  │• placeOrder        │  │• query       │ │
+│  │  (PESSIMISTIC_WRITE)│  │  (PESSIMISTIC_WRITE│  │              │ │
+│  │                     │  │   on account)      │  │              │ │
+│  └─────────┬───────────┘  └────────┬───────────┘  └──────┬───────┘ │
+└────────────┼───────────────────────┼─────────────────────┼─────────┘
+             │                       │                     │
+┌────────────▼───────────────────────▼─────────────────────▼─────────┐
+│                       Repository Layer                               │
+│  Spring Data JPA, @Lock(PESSIMISTIC_WRITE), derived queries         │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              │                │                │
+┌─────────────▼──────┐  ┌─────▼──────┐  ┌──────▼────────────────────┐
+│  PostgreSQL (prod) │  │H2 (dev)    │  │  Apache Kafka             │
+│                    │  │in-memory   │  │  topic: trade-events      │
+└────────────────────┘  └────────────┘  │  (afterCommit publish)    │
+                                        └───────────────────────────┘
+```
+
+## Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| **`PESSIMISTIC_WRITE` on account** (order placement) | Prevents race condition: two concurrent orders on same account can't both read stale balance. `SELECT ... FOR UPDATE` holds row lock until commit. |
+| **Kafka publish after commit** (`TransactionSynchronization.afterCommit`) | Trade events only published after DB transaction succeeds. No orphan messages. |
+| **`@Version` on Account and Order** | Optimistic locking for non-pessimistic paths. `OptimisticLockException` → 409. |
+| **No `@Version` on Trade** | Trades are read-only (immutable after creation). No concurrent updates possible. |
+| **`IllegalStateException` → 409** | Business rule violations (insufficient balance, invalid order state) are conflicts, not server errors. |
+| **`ResourceNotFoundException` → 404** | Proper REST semantics for missing accounts/orders/trades. |
+| **`DataIntegrityViolationException` → 409** | TOCTOU race on unique constraints (e.g., duplicate account number). |
+| **Pagination on all list endpoints** (`Pageable`, default 50) | Prevents OOM. Orders/trades grow unboundedly. |
+| **`POST /orders/{id}/cancel`** (not DELETE) | Cancellation is a state transition, not resource deletion. Order remains in history. |
+| **DTO separation** (Request/Response) | API contract decoupled from JPA entities. No lazy-proxy issues. |
+| **`@JsonIgnore` on lazy relations** | Prevents `LazyInitializationException` during serialization. |
+| **`create-drop` in dev** | H2 in-memory is throwaway. |
 
 ## Features
 
-- **Trading Account Management** - Create accounts, deposit/withdraw funds
-- **Order Management** - Place BUY/SELL MARKET orders with real-time execution
+- **Trading Account Management** - Create accounts, deposit/withdraw (pessimistic locking)
+- **Order Management** - Place BUY/SELL MARKET orders, cancel pending orders
 - **Trade Execution** - Simulated order filling with commission calculation
-- **Balance Management** - Real-time balance updates with transactional integrity
-- **Kafka Integration** - Event-driven architecture for trade events
-- **REST API** - Clean, well-documented REST endpoints
-- **Swagger UI** - Interactive API documentation at `/swagger-ui.html`
-- **Docker** - Multi-stage Docker build + docker-compose (app + PostgreSQL + Kafka)
-- **GraalVM Native Image** - Ready for native compilation
-- **H2 / PostgreSQL** - H2 for dev, PostgreSQL for production
-- **Validation** - Bean Validation with proper error handling
-- **Global Exception Handling** - Clean error responses
+- **Balance Management** - Transactional integrity, race-condition safe
+- **Kafka Integration** - Trade events published after commit
+- **REST API** - Clean, paginated, well-documented endpoints
+- **Swagger UI** - Interactive API documentation
+- **Docker** - Multi-stage build + docker-compose (app + PostgreSQL + Kafka)
+- **Validation** - Bean Validation (400, 404, 409)
+- **Global Exception Handling** - Granular error responses
 
 ## Tech Stack
 
@@ -30,47 +85,45 @@ High-availability trading exchange platform built with Spring Boot 3.4 and Java 
 | Build | Maven |
 | Container | Docker (multi-stage) |
 | CI/CD | GitHub Actions |
-| Native | GraalVM Native Image (ready) |
+| Testing | JUnit 5, MockMvc, PIT (mutation) |
+
+## Testing
+
+| Metric | Value |
+|--------|-------|
+| Integration tests | 17 |
+| Line coverage | 88% |
+| Mutation kill rate (PIT) | 63% (43/68) |
+| Test strength | 78% |
 
 ## Getting Started
 
 ### Prerequisites
 - Java 21+
 - Maven 3.8+
-- Docker (optional, for full stack)
+- Docker (optional)
 
 ### Run with H2 (dev)
 ```bash
 mvn spring-boot:run
 ```
 
-API available at: `http://localhost:8096`
-Swagger UI: `http://localhost:8096/swagger-ui.html`
-H2 Console: `http://localhost:8096/h2-console`
+API: `http://localhost:8096`  
+Swagger: `http://localhost:8096/swagger-ui.html`
 
-### Run with Docker Compose (full stack)
+### Run with Docker Compose
 ```bash
 docker compose up --build
 ```
-
-This starts:
-- App on port 8096
-- PostgreSQL on port 5433
-- Kafka on port 9093
 
 ### Run Tests
 ```bash
 mvn test
 ```
 
-### Build JAR
+### Mutation Testing (PIT)
 ```bash
-mvn clean package -DskipTests
-```
-
-### Build Native Image (requires GraalVM)
-```bash
-mvn native:compile
+mvn org.pitest:pitest-maven:mutationCoverage
 ```
 
 ## API Endpoints
@@ -78,9 +131,10 @@ mvn native:compile
 ### Trading Accounts
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/accounts` | Create trading account |
-| GET | `/api/v1/accounts` | List all accounts |
-| GET | `/api/v1/accounts/{id}` | Get account by ID |
+| POST | `/api/v1/accounts` | Create account |
+| GET | `/api/v1/accounts` | List (paginated) |
+| GET | `/api/v1/accounts/{id}` | Get by ID |
+| GET | `/api/v1/accounts/number/{number}` | Get by account number |
 | POST | `/api/v1/accounts/{id}/deposit` | Deposit funds |
 | POST | `/api/v1/accounts/{id}/withdraw` | Withdraw funds |
 
@@ -88,77 +142,58 @@ mvn native:compile
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/v1/orders` | Place order (BUY/SELL MARKET) |
-| GET | `/api/v1/orders` | List all orders |
-| GET | `/api/v1/orders/{id}` | Get order by ID |
-| GET | `/api/v1/orders/account/{accountId}` | Get orders by account |
+| GET | `/api/v1/orders` | List (paginated) |
+| GET | `/api/v1/orders/{id}` | Get by ID |
+| GET | `/api/v1/orders/account/{id}` | By account |
+| GET | `/api/v1/orders/symbol/{sym}/status/{st}` | By symbol + status |
+| POST | `/api/v1/orders/{id}/cancel` | Cancel pending order |
 
 ### Trades
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/trades` | List all trades |
-| GET | `/api/v1/trades/account/{accountId}` | Get trades by account |
-
-## Order Execution Logic
-
-1. **Validation** - Check account exists, is ACTIVE, has sufficient balance
-2. **Balance Update** - Deduct cost (BUY) or add proceeds (SELL) atomically
-3. **Order Fill** - Execute at specified price (or default 100.00)
-4. **Commission** - 0.1% of trade value
-5. **Trade Record** - Create trade entry with execution details
-
-### Example: BUY 10 shares of AAPL at $150
-- Cost: 10 × $150 = $1,500
-- Commission: $1,500 × 0.001 = $1.50
-- Total deduction: $1,501.50
-- Balance: $100,000 → $98,498.50
+| GET | `/api/v1/trades` | List (paginated) |
+| GET | `/api/v1/trades/{id}` | Get by ID |
+| GET | `/api/v1/trades/order/{id}` | By order |
+| GET | `/api/v1/trades/account/{id}` | By account |
 
 ## Project Structure
 
 ```
 src/main/java/com/github/dziki/fanatics/
-├── FanaticsExchangeApplication.java      # Main class
+├── FanaticsExchangeApplication.java
 ├── config/
-│   ├── JpaConfig.java                    # JPA configuration
-│   └── OpenApiConfig.java                # Swagger/OpenAPI config
+│   ├── JpaConfig.java
+│   └── OpenApiConfig.java
 ├── controller/
-│   ├── TradingAccountController.java     # Account CRUD + deposit/withdraw
-│   └── OrderController.java              # Order placement + queries
+│   ├── TradingAccountController.java
+│   ├── OrderController.java
+│   └── TradeController.java
 ├── dto/
-│   ├── TradingAccountRequest.java        # Create account request
-│   ├── TradingAccountResponse.java       # Account response
-│   ├── OrderRequest.java                 # Place order request
-│   └── OrderResponse.java                # Order response
+│   ├── TradingAccountRequest.java
+│   ├── TradingAccountResponse.java
+│   ├── DepositRequest.java
+│   ├── WithdrawRequest.java
+│   ├── OrderRequest.java
+│   ├── OrderResponse.java
+│   └── TradeResponse.java
 ├── exception/
-│   └── GlobalExceptionHandler.java       # Global error handling
+│   ├── GlobalExceptionHandler.java
+│   └── ResourceNotFoundException.java
+├── kafka/
+│   └── TradeKafkaProducer.java
 ├── model/
-│   ├── TradingAccount.java               # Account entity
-│   ├── Order.java                        # Order entity
-│   └── Trade.java                        # Trade entity
+│   ├── TradingAccount.java
+│   ├── Order.java
+│   └── Trade.java
 ├── repository/
 │   ├── TradingAccountRepository.java
 │   ├── OrderRepository.java
 │   └── TradeRepository.java
 └── service/
-    ├── TradingAccountService.java        # Account + balance logic
-    └── OrderService.java                 # Order + execution logic
+    ├── TradingAccountService.java
+    ├── OrderService.java
+    └── TradeService.java
 ```
-
-## Configuration
-
-| Profile | Database | Kafka | Port |
-|---------|----------|-------|------|
-| default (dev) | H2 in-memory | localhost:9092 | 8096 |
-| prod | PostgreSQL | configurable | 8096 |
-
-### Environment Variables (prod)
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DB_HOST` | localhost | PostgreSQL host |
-| `DB_PORT` | 5432 | PostgreSQL port |
-| `DB_NAME` | fanatics | Database name |
-| `DB_USER` | fanatics | Database user |
-| `DB_PASSWORD` | fanatics | Database password |
-| `KAFKA_BOOTSTRAP_SERVERS` | kafka:29092 | Kafka bootstrap servers |
 
 ## License
 
