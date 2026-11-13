@@ -39,7 +39,7 @@ spring:
         spring:
           json:
             trusted:
-              packages: "*"
+              packages: com.github.dziki.fanatics.model
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer

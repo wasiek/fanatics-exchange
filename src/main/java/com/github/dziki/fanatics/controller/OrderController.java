@@ -46,7 +46,7 @@ public class OrderController {
         return ResponseEntity.ok(orderService.findBySymbolAndStatus(symbol, status));
     }
 
-    @DeleteMapping("/{id}")
+    @PostMapping("/{id}/cancel")
     public ResponseEntity<OrderResponse> cancelOrder(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.cancelOrder(id));
     }

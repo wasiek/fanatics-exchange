@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
@@ -47,6 +48,10 @@ public class Trade {
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal commission;
 
-    @CreatedDate
+    @Column(name = "executed_at")
     private Instant executedAt;
+
+    @CreatedDate
+    @Column(name = "created_at", updatable = false)
+    private Instant createdAt;
 }

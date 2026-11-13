@@ -96,7 +96,7 @@ class OrderControllerTest {
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(com.fasterxml.jackson.databind.json.JsonMapper.builder().build().writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("Account not found: 999"));
     }
 
@@ -143,7 +143,7 @@ class OrderControllerTest {
     @Test
     void findOrderById_notFound() throws Exception {
         mockMvc.perform(get("/api/v1/orders/999"))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("Order not found: 999"));
     }
 
@@ -210,7 +210,7 @@ class OrderControllerTest {
                 .build();
         order = orderRepository.save(order);
 
-        mockMvc.perform(delete("/api/v1/orders/" + order.getId()))
+        mockMvc.perform(post("/api/v1/orders/" + order.getId() + "/cancel"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
     }
@@ -229,15 +229,15 @@ class OrderControllerTest {
                 .build();
         order = orderRepository.save(order);
 
-        mockMvc.perform(delete("/api/v1/orders/" + order.getId()))
+        mockMvc.perform(post("/api/v1/orders/" + order.getId() + "/cancel"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Order cannot be cancelled - status: FILLED"));
     }
 
     @Test
     void cancelOrder_notFound() throws Exception {
-        mockMvc.perform(delete("/api/v1/orders/999"))
-                .andExpect(status().isBadRequest())
+        mockMvc.perform(post("/api/v1/orders/999/cancel"))
+                .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("Order not found: 999"));
     }
 }

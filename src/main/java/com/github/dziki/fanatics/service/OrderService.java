@@ -2,6 +2,7 @@ package com.github.dziki.fanatics.service;
 
 import com.github.dziki.fanatics.dto.OrderRequest;
 import com.github.dziki.fanatics.dto.OrderResponse;
+import com.github.dziki.fanatics.exception.ResourceNotFoundException;
 import com.github.dziki.fanatics.kafka.TradeKafkaProducer;
 import com.github.dziki.fanatics.model.Order;
 import com.github.dziki.fanatics.model.TradingAccount;
@@ -33,7 +34,7 @@ public class OrderService {
     public OrderResponse placeOrder(OrderRequest request) {
         // Pessimistic lock to prevent race conditions on balance
         TradingAccount account = accountRepository.findByIdAndLock(request.getAccountId())
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + request.getAccountId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", request.getAccountId()));
 
         if (!"ACTIVE".equals(account.getStatus())) {
             throw new IllegalArgumentException("Account is not active");
@@ -49,11 +50,9 @@ public class OrderService {
                 throw new IllegalArgumentException("Insufficient balance for order");
             }
         } else if ("SELL".equals(request.getSide())) {
-            // Check if account has enough holdings (simplified: check balance as proxy)
-            BigDecimal sellValue = executionPrice.multiply(request.getQuantity());
-            if (sellValue.compareTo(account.getBalance()) > 0 && account.getBalance().compareTo(BigDecimal.ZERO) == 0) {
-                throw new IllegalArgumentException("No holdings to sell");
-            }
+            // NOTE: Full holdings tracking (per-symbol positions) is a future enhancement.
+            // Currently we allow SELL as long as the account is active.
+            // In production, this would check: holdingsRepository.getQuantity(accountId, symbol) >= quantity
         }
 
         // All validations passed - now write
@@ -115,7 +114,7 @@ public class OrderService {
     @Transactional(readOnly = true)
     public OrderResponse findById(Long id) {
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Order", id));
         return OrderResponse.fromEntity(order);
     }
 
@@ -136,7 +135,7 @@ public class OrderService {
     @Transactional
     public OrderResponse cancelOrder(Long id) {
         Order order = orderRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Order", id));
 
         if (!"PENDING".equals(order.getStatus())) {
             throw new IllegalArgumentException("Order cannot be cancelled - status: " + order.getStatus());

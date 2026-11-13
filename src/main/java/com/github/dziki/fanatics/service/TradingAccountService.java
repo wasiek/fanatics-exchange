@@ -2,6 +2,7 @@ package com.github.dziki.fanatics.service;
 
 import com.github.dziki.fanatics.dto.TradingAccountRequest;
 import com.github.dziki.fanatics.dto.TradingAccountResponse;
+import com.github.dziki.fanatics.exception.ResourceNotFoundException;
 import com.github.dziki.fanatics.model.TradingAccount;
 import com.github.dziki.fanatics.repository.TradingAccountRepository;
 import lombok.RequiredArgsConstructor;
@@ -47,21 +48,21 @@ public class TradingAccountService {
     @Transactional(readOnly = true)
     public TradingAccountResponse findById(Long id) {
         TradingAccount account = accountRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", id));
         return TradingAccountResponse.fromEntity(account);
     }
 
     @Transactional(readOnly = true)
     public TradingAccountResponse findByAccountNumber(String accountNumber) {
         TradingAccount account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + accountNumber));
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + accountNumber));
         return TradingAccountResponse.fromEntity(account);
     }
 
     @Transactional
     public TradingAccountResponse deposit(Long id, BigDecimal amount) {
-        TradingAccount account = accountRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + id));
+        TradingAccount account = accountRepository.findByIdAndLock(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", id));
 
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Deposit amount must be positive");
@@ -75,8 +76,8 @@ public class TradingAccountService {
 
     @Transactional
     public TradingAccountResponse withdraw(Long id, BigDecimal amount) {
-        TradingAccount account = accountRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + id));
+        TradingAccount account = accountRepository.findByIdAndLock(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", id));
 
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Withdrawal amount must be positive");
