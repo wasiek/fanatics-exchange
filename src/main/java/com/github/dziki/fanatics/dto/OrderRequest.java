@@ -31,6 +31,7 @@ public class OrderRequest {
     @DecimalMin(value = "0.0001", message = "Quantity must be positive")
     private BigDecimal quantity;
 
-    @DecimalMin(value = "0.0", message = "Price must be non-negative")
+    @NotNull(message = "Price is required")
+    @DecimalMin(value = "0.01", message = "Price must be positive")
     private BigDecimal price;
 }

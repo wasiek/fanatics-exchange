@@ -1,7 +1,9 @@
 package com.github.dziki.fanatics.controller;
 
+import com.github.dziki.fanatics.dto.DepositRequest;
 import com.github.dziki.fanatics.dto.TradingAccountRequest;
 import com.github.dziki.fanatics.dto.TradingAccountResponse;
+import com.github.dziki.fanatics.dto.WithdrawRequest;
 import com.github.dziki.fanatics.service.TradingAccountService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -9,9 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/accounts")
@@ -42,14 +42,16 @@ public class TradingAccountController {
     }
 
     @PostMapping("/{id}/deposit")
-    public ResponseEntity<TradingAccountResponse> deposit(@PathVariable Long id, @RequestBody Map<String, BigDecimal> request) {
-        BigDecimal amount = request.get("amount");
-        return ResponseEntity.ok(accountService.deposit(id, amount));
+    public ResponseEntity<TradingAccountResponse> deposit(@PathVariable Long id,
+                                                          @Valid @RequestBody DepositRequest request) {
+        TradingAccountResponse response = accountService.deposit(id, request.getAmount());
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{id}/withdraw")
-    public ResponseEntity<TradingAccountResponse> withdraw(@PathVariable Long id, @RequestBody Map<String, BigDecimal> request) {
-        BigDecimal amount = request.get("amount");
-        return ResponseEntity.ok(accountService.withdraw(id, amount));
+    public ResponseEntity<TradingAccountResponse> withdraw(@PathVariable Long id,
+                                                           @Valid @RequestBody WithdrawRequest request) {
+        TradingAccountResponse response = accountService.withdraw(id, request.getAmount());
+        return ResponseEntity.ok(response);
     }
 }

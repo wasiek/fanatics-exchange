@@ -2,13 +2,13 @@ package com.github.dziki.fanatics.service;
 
 import com.github.dziki.fanatics.dto.OrderRequest;
 import com.github.dziki.fanatics.dto.OrderResponse;
+import com.github.dziki.fanatics.kafka.TradeKafkaProducer;
 import com.github.dziki.fanatics.model.Order;
 import com.github.dziki.fanatics.model.TradingAccount;
 import com.github.dziki.fanatics.model.Trade;
 import com.github.dziki.fanatics.repository.OrderRepository;
 import com.github.dziki.fanatics.repository.TradeRepository;
 import com.github.dziki.fanatics.repository.TradingAccountRepository;
-import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,6 +27,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final TradingAccountRepository accountRepository;
     private final TradeRepository tradeRepository;
+    private final TradeKafkaProducer kafkaProducer;
 
     @Transactional
     public OrderResponse placeOrder(OrderRequest request) {
@@ -38,8 +39,7 @@ public class OrderService {
             throw new IllegalArgumentException("Account is not active");
         }
 
-        // For MARKET orders, simulate execution at current price
-        BigDecimal executionPrice = request.getPrice() != null ? request.getPrice() : BigDecimal.valueOf(100.0);
+        BigDecimal executionPrice = request.getPrice();
         BigDecimal commission = executionPrice.multiply(request.getQuantity()).multiply(BigDecimal.valueOf(0.001));
 
         // VALIDATE BEFORE ANY WRITE
@@ -47,6 +47,12 @@ public class OrderService {
             BigDecimal totalCost = executionPrice.multiply(request.getQuantity()).add(commission);
             if (account.getBalance().compareTo(totalCost) < 0) {
                 throw new IllegalArgumentException("Insufficient balance for order");
+            }
+        } else if ("SELL".equals(request.getSide())) {
+            // Check if account has enough holdings (simplified: check balance as proxy)
+            BigDecimal sellValue = executionPrice.multiply(request.getQuantity());
+            if (sellValue.compareTo(account.getBalance()) > 0 && account.getBalance().compareTo(BigDecimal.ZERO) == 0) {
+                throw new IllegalArgumentException("No holdings to sell");
             }
         }
 
@@ -92,6 +98,9 @@ public class OrderService {
         log.info("Order placed: {} {} {} @ {} (commission: {}), new balance: {}",
                 request.getSide(), request.getQuantity(), request.getSymbol(),
                 executionPrice, commission, account.getBalance());
+
+        kafkaProducer.publishTradeExecuted(order.getId(), request.getSymbol(),
+                request.getSide(), request.getQuantity(), executionPrice, commission);
 
         return OrderResponse.fromEntity(order);
     }
