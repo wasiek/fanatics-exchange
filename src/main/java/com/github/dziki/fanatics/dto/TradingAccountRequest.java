@@ -3,6 +3,8 @@ package com.github.dziki.fanatics.dto;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -19,5 +21,5 @@ public class TradingAccountRequest {
 
     @NotNull(message = "Initial balance is required")
     @DecimalMin(value = "0.0", message = "Balance must be non-negative")
-    private java.math.BigDecimal initialBalance;
+    private BigDecimal initialBalance;
 }

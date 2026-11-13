@@ -5,6 +5,7 @@ import com.github.dziki.fanatics.dto.TradingAccountResponse;
 import com.github.dziki.fanatics.model.TradingAccount;
 import com.github.dziki.fanatics.repository.TradingAccountRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +15,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TradingAccountService {
 
     private final TradingAccountRepository accountRepository;
@@ -35,18 +37,21 @@ public class TradingAccountService {
         return TradingAccountResponse.fromEntity(account);
     }
 
+    @Transactional(readOnly = true)
     public List<TradingAccountResponse> findAll() {
         return accountRepository.findAll().stream()
                 .map(TradingAccountResponse::fromEntity)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public TradingAccountResponse findById(Long id) {
         TradingAccount account = accountRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found: " + id));
         return TradingAccountResponse.fromEntity(account);
     }
 
+    @Transactional(readOnly = true)
     public TradingAccountResponse findByAccountNumber(String accountNumber) {
         TradingAccount account = accountRepository.findByAccountNumber(accountNumber)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found: " + accountNumber));
@@ -64,6 +69,7 @@ public class TradingAccountService {
 
         account.setBalance(account.getBalance().add(amount));
         account = accountRepository.save(account);
+        log.info("Deposit: account={}, amount={}, newBalance={}", id, amount, account.getBalance());
         return TradingAccountResponse.fromEntity(account);
     }
 
@@ -82,6 +88,7 @@ public class TradingAccountService {
 
         account.setBalance(account.getBalance().subtract(amount));
         account = accountRepository.save(account);
+        log.info("Withdraw: account={}, amount={}, newBalance={}", id, amount, account.getBalance());
         return TradingAccountResponse.fromEntity(account);
     }
 }
