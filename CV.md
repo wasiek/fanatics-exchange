@@ -3,7 +3,7 @@
 **Senior Java Developer | Contractor**
 
 Warsaw, Poland | Remote (EU/UK)  
-email@example.com | +48 XXX XXX XXX | github.com/wasiek
+mateusz.was@gmail.com | +48 731 101 078 | github.com/wasiek
 
 ---
 
